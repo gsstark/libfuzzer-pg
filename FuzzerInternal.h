@@ -102,11 +102,14 @@ class Fuzzer {
   size_t getTotalNumberOfRuns() { return TotalNumberOfRuns; }
 
   static void StaticAlarmCallback();
+  static void StaticDeathCallback();
+  static void StaticErrorCallback(const char *errorname);
 
   Unit SubstituteTokens(const Unit &U) const;
 
  private:
   void AlarmCallback();
+  void ErrorCallback(const char *errorname);
   void ExecuteCallback(const Unit &U);
   void MutateAndTestOne(Unit *U);
   void ReportNewCoverage(size_t NewCoverage, const Unit &U);
@@ -134,7 +137,6 @@ class Fuzzer {
   void ApplyTraceBasedMutation(size_t Idx, Unit *U);
 
   void SetDeathCallback();
-  static void StaticDeathCallback();
   void DeathCallback();
   Unit CurrentUnit;
 

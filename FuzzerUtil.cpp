@@ -13,6 +13,7 @@
 #include <sstream>
 #include <iomanip>
 #include <sys/time.h>
+#include <sys/resource.h>
 #include <cassert>
 #include <cstring>
 #include <signal.h>
@@ -50,15 +51,26 @@ static void AlarmHandler(int, siginfo_t *, void *) {
 }
 
 void SetTimer(int Seconds) {
-  struct itimerval T {{Seconds, 0}, {Seconds, 0}};
-  Printf("SetTimer %d\n", Seconds);
-  int Res = setitimer(ITIMER_REAL, &T, nullptr);
-  assert(Res == 0);
-  struct sigaction sigact;
-  memset(&sigact, 0, sizeof(sigact));
-  sigact.sa_sigaction = AlarmHandler;
-  Res = sigaction(SIGALRM, &sigact, 0);
-  assert(Res == 0);
+//  struct itimerval T {{Seconds, 0}, {Seconds, 0}};
+//  Printf("SetTimer %d\n", Seconds);
+//  int Res = setitimer(ITIMER_REAL, &T, nullptr);
+//  assert(Res == 0);
+//  struct sigaction sigact;
+//  memset(&sigact, 0, sizeof(sigact));
+//  sigact.sa_sigaction = AlarmHandler;
+//  Res = sigaction(SIGALRM, &sigact, 0);
+//  assert(Res == 0);
+
+	int Res;
+	struct rlimit limit = {1, RLIM_INFINITY};
+	Res = setrlimit(RLIMIT_CPU, &limit);
+	assert(Res == 0);
+
+	struct sigaction sigact;
+	memset(&sigact, 0, sizeof(sigact));
+	sigact.sa_sigaction = AlarmHandler;
+	Res = sigaction(SIGXCPU, &sigact, 0);
+	assert(Res == 0);
 }
 
 int NumberOfCpuCores() {

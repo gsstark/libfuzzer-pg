@@ -77,6 +77,28 @@ void Fuzzer::AlarmCallback() {
   }
 }
 
+void Fuzzer::StaticErrorCallback(const char *errorname) {
+  assert(F);
+  F->ErrorCallback(errorname);
+}
+
+#include <string.h>
+void Fuzzer::ErrorCallback(const char *ErrorName) {
+	char prefix[80];
+	assert(strnlen(ErrorName, 80) < 80);
+	if (!ErrorName) {
+		strcpy(prefix, "error-");
+	} else {
+		sprintf(prefix, "%s-", ErrorName);
+	}
+	
+    Printf("ERROR: Fuzzer Function reports an internal error\n");
+    if (CurrentUnit.size() <= kMaxUnitSizeToPrint)
+		Print(CurrentUnit, "\n");
+    PrintUnitInASCIIOrTokens(CurrentUnit, "\n");
+    WriteUnitToFileWithPrefix(CurrentUnit, prefix);
+}
+
 void Fuzzer::PrintStats(const char *Where, size_t Cov, const char *End) {
   if (!Options.Verbosity) return;
   size_t Seconds = secondsSinceProcessStartUp();
@@ -287,7 +309,7 @@ void Fuzzer::ReportNewCoverage(size_t NewCoverage, const Unit &U) {
   PrintStats("NEW   ", NewCoverage, "");
   if (Options.Verbosity) {
     Printf(" L: %zd", U.size());
-    if (U.size() < 30) {
+    if (U.size() < 230) {
       Printf(" ");
       PrintUnitInASCIIOrTokens(U, "\t");
       Print(U);

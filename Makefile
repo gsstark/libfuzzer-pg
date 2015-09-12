@@ -1,9 +1,9 @@
-SAN = -fsanitize=address -fsanitize-coverage=edge,indirect-calls,8bit-counters
+SAN = -fsanitize=address -fsanitize-coverage=edge,indirect-calls,8bit-counters,trace-cmp
 
 OBJS = FuzzerCrossOver.o FuzzerDriver.o FuzzerIO.o \
 	FuzzerInterface.o FuzzerLoop.o FuzzerMutate.o \
 	FuzzerSHA1.o FuzzerSanitizerOptions.o FuzzerTraceState.o FuzzerUtil.o \
-	test_harness.o test_pg.o
+	test_harness.o test_pg.o fail_pg.o
 
 all: test.so
 
@@ -14,7 +14,7 @@ test_harness.o: test_harness.cpp
 	clang++ -g -O0 -Wno-writable-strings -fPIC -c -std=c++11 $(SAN) test_harness.cpp
 
 %.o: %.c
-	clang -g -O0 -I`/usr/local/pgsql/bin/pg_config --includedir-server` -fPIC  -c $(SAN) test_pg.c
+	clang -g -O0 -I`/usr/local/pgsql/bin/pg_config --includedir-server` -fPIC  -c $(SAN) $<
 
 test.so: $(OBJS)
 	clang++ -shared -g -O0 -o test.so $(SAN) $(OBJS)
