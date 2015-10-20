@@ -21,6 +21,8 @@ extern void errorcallback(const char *errorname);
 
 extern MemoryContext RegexpContext;
 
+static int in_fuzzer;
+
 static int paranoid_rcancelrequested(void);
 static int check_heap_allocs();
 
@@ -35,9 +37,8 @@ PG_MODULE_MAGIC;
 
 SPIPlanPtr plan;
 
-static bool alldone=0;
 void fuzz_exit_handler(int code, Datum arg) {
-	if (!alldone)
+	if (in_fuzzer)
 		abort();
 	//		staticdeathcallback();
 }
@@ -121,6 +122,7 @@ fuzz(PG_FUNCTION_ARGS)
 	/* If Postgres handles a FATAL error it'll exit cleanly but we
 	 * want to treat the last test as a failure */
 	on_proc_exit(fuzz_exit_handler, 0);
+	in_fuzzer = 1;
 
 	retval = SPI_connect();
 	if (retval != SPI_OK_CONNECT)
@@ -147,7 +149,7 @@ fuzz(PG_FUNCTION_ARGS)
 	SPI_finish();
 
 	/* disable the proc_exit call which calls the deathcallback */
-	alldone = 1;
+	in_fuzzer = 0;
 
 	PG_RETURN_NULL();
 }		
@@ -231,7 +233,14 @@ void FuzzOne(const char *Data, size_t Size) {
 		if (errcategory == ERRCODE_PROGRAM_LIMIT_EXCEEDED ||
 			errcategory == ERRCODE_INSUFFICIENT_RESOURCES ||
 			errcategory == ERRCODE_OPERATOR_INTERVENTION || /* statement_timeout */
-			errcategory == ERRCODE_INTERNAL_ERROR)
+			errcategory == ERRCODE_INTERNAL_ERROR ||
+			(edata->sqlerrcode == ERRCODE_INVALID_REGULAR_EXPRESSION &&
+			 (strstr(edata->message, "regular expression failed") ||
+			  strstr(edata->message, "out of memory") ||
+			  strstr(edata->message, "cannot happen") ||
+			  strstr(edata->message, "too complex") ||
+			  strstr(edata->message, "too many colors") ||
+			  strstr(edata->message, "operation cancelled"))))
 			{
 				if (last_error != edata->sqlerrcode) {
 					last_error = edata->sqlerrcode;
@@ -240,10 +249,12 @@ void FuzzOne(const char *Data, size_t Size) {
 					abort();
 				}
 
-				char errorname[80];
-				sprintf(errorname, "error-%s", unpack_sql_state(edata->sqlerrcode));
-				fprintf(stderr, "Calling errocallback for %s (%s)\n", errorname, edata->message);
-				errorcallback(errorname);
+				if (in_fuzzer) {
+					char errorname[80];
+					sprintf(errorname, "error-%s", unpack_sql_state(edata->sqlerrcode));
+					fprintf(stderr, "Calling errocallback for %s (%s)\n", errorname, edata->message);
+					errorcallback(errorname);
+				}
 
 				/* we were in a subtransaction so yay we can continue */
 				FreeErrorData(edata);
@@ -305,7 +316,8 @@ static int check_heap_allocs() {
 				memory_used / 1024 / 1024,
 				(size_t)work_mem / 1024
 				);
-		errorcallback("regexmem");
+		if (in_fuzzer)
+			errorcallback("regexmem");
 		return 1;
 	} else {
 		return 0;

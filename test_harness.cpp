@@ -23,7 +23,7 @@ int GoFuzz(unsigned runs) {
 		"-use_traces=1",
 		"/var/tmp/corpus-minimized",
 		"/var/tmp/corpus",
-		"-max_len=12",
+		"-max_len=32",
 		NULL
 	};
 	int argc = sizeof(argv)/sizeof(*argv) - 1;
