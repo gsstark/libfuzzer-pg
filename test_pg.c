@@ -19,19 +19,7 @@ extern void GoFuzz();
 extern void staticdeathcallback();
 extern void errorcallback(const char *errorname);
 
-extern MemoryContext RegexpContext;
-
 static int in_fuzzer;
-
-static int paranoid_rcancelrequested(void);
-static int check_heap_allocs();
-
-size_t
-WatchMemoryContextStats(MemoryContext context);
-static void
-MemoryContextStatsInternal(MemoryContext context, int level,
-						   MemoryContextCounters *totals);
-
 
 PG_MODULE_MAGIC;
 
@@ -40,7 +28,6 @@ SPIPlanPtr plan;
 void fuzz_exit_handler(int code, Datum arg) {
 	if (in_fuzzer)
 		abort();
-	//		staticdeathcallback();
 }
 
 
@@ -85,14 +72,8 @@ static void limit_resources() {
 PG_FUNCTION_INFO_V1(test_fuzz_environment);
 Datum
 test_fuzz_environment(PG_FUNCTION_ARGS){
-	if (!RegexpContext)
-		elog(ERROR, "RegexpContext does not exist");
-
 	elog(WARNING, "setting rlimit");
 	limit_resources();
-
-	elog(WARNING, "setting rcancelrequested func");
-	pg_regex_set_rcancel(&paranoid_rcancelrequested);
 
 	elog(WARNING, "setting statement_timeout");
 	SetConfigOption("statement_timeout", "1000", PGC_SUSET, PGC_S_OVERRIDE);
@@ -116,8 +97,6 @@ fuzz(PG_FUNCTION_ARGS)
 		elog(ERROR, "Unreasonable number of runs");
 
 	limit_resources();
-
-	pg_regex_set_rcancel(&paranoid_rcancelrequested);
 
 	/* If Postgres handles a FATAL error it'll exit cleanly but we
 	 * want to treat the last test as a failure */
@@ -258,9 +237,6 @@ void FuzzOne(const char *Data, size_t Size) {
 
 				/* we were in a subtransaction so yay we can continue */
 				FreeErrorData(edata);
-
-				// XXX
-				MemoryContextStats(RegexpContext);
 			}
 		else
 			{
@@ -278,101 +254,9 @@ void FuzzOne(const char *Data, size_t Size) {
 	if ((n_execs & (n_execs-1)) == 0) {
 		static int  old_n_execs;
 		fprintf(stderr, "FuzzOne n=%lu  success=%lu  fail=%lu  null=%lu\n", n_execs, n_success, n_fail, n_null);
-		size_t totaldiff = WatchMemoryContextStats(TopMemoryContext);
-		unsigned long ndiff = n_execs - old_n_execs;
-		if (ndiff > 0 && totaldiff > 0)
-			fprintf(stderr, "Memory used: %lu bytes in %lu calls (%lu bytes/call)\n", totaldiff, ndiff, totaldiff / ndiff);
-		if ((totaldiff > 0 && n_execs > 200) || (totaldiff > 10000 && n_execs > 5)) {
-			MemoryContextStats(TopMemoryContext);
-		}		
 		old_n_execs = n_execs;
 	}
 }
 
 
 
-static int
-paranoid_rcancelrequested(void)
-{
-
-	check_stack_depth();
-
-	int lackmem = 0;
-	static unsigned i;
-	if (i++ % 20000 == 0)
-		lackmem = check_heap_allocs();
-
-	return lackmem || (InterruptPending && (QueryCancelPending || ProcDiePending));
-}
-
-static int check_heap_allocs() {
-	MemoryContextCounters grand_totals;
-	size_t memory_used;
-	memset(&grand_totals, 0, sizeof(grand_totals));
-	MemoryContextStatsInternal(RegexpContext, 0, &grand_totals);
-	memory_used = grand_totals.totalspace - grand_totals.freespace;
-	if (memory_used > (size_t)work_mem * 1024) {
-		fprintf(stderr, "Too much memory used calling errorcallback (total=%zd MB > work_mem=%zd MB)\n",
-				memory_used / 1024 / 1024,
-				(size_t)work_mem / 1024
-				);
-		if (in_fuzzer)
-			errorcallback("regexmem");
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
-size_t
-WatchMemoryContextStats(MemoryContext context)
-{
-	int totaldiff;
-	static MemoryContextCounters old_totals;
-	MemoryContextCounters grand_totals;
-
-	memset(&grand_totals, 0, sizeof(grand_totals));
-	MemoryContextStatsInternal(context, 0, &grand_totals);
-	totaldiff = grand_totals.totalspace - old_totals.totalspace;
-
-	if (totaldiff > 0)
-		
-		fprintf(stderr,
-				"Memory Use Summary: %zu bytes in %zd blocks; %zu free (%zd chunks); %zu used\n",
-				grand_totals.totalspace, grand_totals.nblocks,
-				grand_totals.freespace, grand_totals.freechunks,
-				grand_totals.totalspace - grand_totals.freespace);
-		
-	old_totals = grand_totals;
-
-	return totaldiff;
-}
-
-/*
- * MemoryContextStatsInternal
- *		One recursion level for MemoryContextStats
- *
- * Copied from mcxt.c with the printouts and max_children removed
- *
- */
-static void
-MemoryContextStatsInternal(MemoryContext context, int level,
-						   MemoryContextCounters *totals)
-{
-	MemoryContext child;
-	int			ichild;
-
-	AssertArg(MemoryContextIsValid(context));
-
-	/* Examine the context itself */
-	(*context->methods->stats) (context, level, false, totals);
-
-	/* Examine children */
-	for (child = context->firstchild, ichild = 0;
-		 child != NULL;
-		 child = child->nextchild, ichild++)
-	{
-		MemoryContextStatsInternal(child, level + 1,
-								   totals);
-	}
-}
