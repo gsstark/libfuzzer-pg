@@ -1,4 +1,5 @@
 SAN = -fsanitize=address -fsanitize-coverage=edge,indirect-calls,8bit-counters,trace-cmp
+#SAN = -fsanitize-coverage=edge,indirect-calls,8bit-counters,trace-cmp
 
 OBJS = FuzzerCrossOver.o FuzzerDriver.o FuzzerIO.o \
 	FuzzerInterface.o FuzzerLoop.o FuzzerMutate.o \

@@ -5,6 +5,7 @@
 #include "storage/ipc.h"
 #include "catalog/pg_type.h"
 #include "utils/array.h"
+#include "utils/timeout.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 #include "utils/guc.h"
@@ -76,7 +77,7 @@ test_fuzz_environment(PG_FUNCTION_ARGS){
 	limit_resources();
 
 	elog(WARNING, "setting statement_timeout");
-	SetConfigOption("statement_timeout", "1000", PGC_SUSET, PGC_S_OVERRIDE);
+	SetConfigOption("statement_timeout", "200", PGC_SUSET, PGC_S_OVERRIDE);
 
 	PG_RETURN_NULL();
 }	
@@ -107,11 +108,6 @@ fuzz(PG_FUNCTION_ARGS)
 	if (retval != SPI_OK_CONNECT)
 		abort();
 
-	/* A query which takes 3s is a slow query but at least it calls
-	 * CHECK_FOR_INTERRUPTS enough.
-	 */
-	SetConfigOption("statement_timeout", "3000", PGC_SUSET, PGC_S_OVERRIDE);
-
 	/* Prepare once before we start the driver */
 	plan = SPI_prepare(expr, 1, argtypes);
 	if (!plan)
@@ -133,6 +129,35 @@ fuzz(PG_FUNCTION_ARGS)
 	PG_RETURN_NULL();
 }		
 
+static struct {
+	int errcode;
+	int count;
+} errcode_counts[100];
+int num_counts;
+
+static int inc_errcode_count(int errcode) {
+	int i;
+	for (i=0;i<num_counts;i++) {
+		if (errcode_counts[i].errcode == errcode) {
+			return ++errcode_counts[i].count;
+		}
+	}
+	if (num_counts >= 100)
+		abort();
+	errcode_counts[num_counts].errcode = errcode;
+	errcode_counts[num_counts].count = 1;
+	num_counts++;
+	return 1;
+}
+static void list_errcode_counts() {
+	int i;
+	fprintf(stderr, "Error codes seen");
+	for (i=0; i<num_counts; i++) {
+		fprintf(stderr, " %s:%d", unpack_sql_state(errcode_counts[i].errcode), errcode_counts[i].count);
+	}
+	fprintf(stderr, "\n");
+}
+
 /* 
  * Callback from fuzzer to execute one fuzz test case as set up in
  * global "plan" variable by fuzz() 
@@ -146,8 +171,6 @@ void FuzzOne(const char *Data, size_t Size) {
 	MemoryContext oldcontext = CurrentMemoryContext;
  	ResourceOwner oldowner = CurrentResourceOwner;
 
-	CHECK_FOR_INTERRUPTS();
-
 	n_execs++;
 
 	/* Not sure why we're being passed NULL */
@@ -157,17 +180,24 @@ void FuzzOne(const char *Data, size_t Size) {
 	}
 
 	BeginInternalSubTransaction(NULL);
-	MemoryContextSwitchTo(CurrentMemoryContext);
-
  	PG_TRY();
  	{
 		Datum values[1] = { PointerGetDatum(arg) };
 		int retval;
 
+		/* Slow queries are bad but if they CHECK_FOR_INTERRUPTS often
+		   enough then that's not too bad. We must directly call
+		   enable_timeout because STATEMENT_TIMEOUT is only armed in
+		   postgres.c which SPI bypasses */
+		CHECK_FOR_INTERRUPTS();
+		enable_timeout_after(STATEMENT_TIMEOUT, 1000);
+
 		retval = SPI_execute_plan(plan, values,
 								  NULL /* nulls */,
 								  true, /* read-only */
 								  0 /* max rows */);
+		disable_timeout(STATEMENT_TIMEOUT, true);
+
 		SPI_freetuptable(SPI_tuptable);
 
 		if (retval == SPI_OK_SELECT)
@@ -189,7 +219,30 @@ void FuzzOne(const char *Data, size_t Size) {
  	{
 		/* Save error info */
 		MemoryContextSwitchTo(oldcontext);
+		disable_timeout(STATEMENT_TIMEOUT, true);
+
 		ErrorData  *edata = CopyErrorData();
+		inc_errcode_count(edata->sqlerrcode);
+
+
+		/* Allow C-c to cancel the whole fuzzer */
+		if (edata->sqlerrcode == ERRCODE_QUERY_CANCELED &&
+			strstr(edata->message, "due to user request")) {
+			in_fuzzer = 0;
+			PG_RE_THROW();
+		} else if (last_error != edata->sqlerrcode) {
+			/* New error seen -- that's a good thing */
+			last_error = edata->sqlerrcode;
+			last_error_count = 0;
+		} else if (last_error_count++ > 10) {
+			/* If we're repeatedly hitting the same errcode over
+			 * and over abort because that's usually a sign the
+			 * harness isn't working properly */
+			in_fuzzer = 0;
+			PG_RE_THROW();
+		}
+
+		/* Otherwise attempt to recover using the subtransaction */
 		FlushErrorState();
 
 		/* Abort the inner transaction */
@@ -211,23 +264,16 @@ void FuzzOne(const char *Data, size_t Size) {
 		int errcategory = ERRCODE_TO_CATEGORY(edata->sqlerrcode);
 		if (errcategory == ERRCODE_PROGRAM_LIMIT_EXCEEDED ||
 			errcategory == ERRCODE_INSUFFICIENT_RESOURCES ||
-			errcategory == ERRCODE_OPERATOR_INTERVENTION || /* statement_timeout */
+			//			errcategory == ERRCODE_OPERATOR_INTERVENTION || /* statement_timeout */
 			errcategory == ERRCODE_INTERNAL_ERROR ||
 			(edata->sqlerrcode == ERRCODE_INVALID_REGULAR_EXPRESSION &&
 			 (strstr(edata->message, "regular expression failed") ||
 			  strstr(edata->message, "out of memory") ||
 			  strstr(edata->message, "cannot happen") ||
-			  strstr(edata->message, "too complex") ||
+			  //			  strstr(edata->message, "too complex") ||
 			  strstr(edata->message, "too many colors") ||
 			  strstr(edata->message, "operation cancelled"))))
 			{
-				if (last_error != edata->sqlerrcode) {
-					last_error = edata->sqlerrcode;
-					last_error_count = 0;
-				} else if (last_error_count++ > 10) {
-					abort();
-				}
-
 				if (in_fuzzer) {
 					char errorname[80];
 					sprintf(errorname, "error-%s", unpack_sql_state(edata->sqlerrcode));
@@ -254,6 +300,7 @@ void FuzzOne(const char *Data, size_t Size) {
 	if ((n_execs & (n_execs-1)) == 0) {
 		static int  old_n_execs;
 		fprintf(stderr, "FuzzOne n=%lu  success=%lu  fail=%lu  null=%lu\n", n_execs, n_success, n_fail, n_null);
+		list_errcode_counts();
 		old_n_execs = n_execs;
 	}
 }
