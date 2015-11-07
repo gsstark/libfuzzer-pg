@@ -18,7 +18,7 @@ int GoFuzz(unsigned runs) {
 		"-verbosity=1",
 		"-only_ascii=1",
 		"-timeout=60",
-		"-report_slow_units=2",
+		"-report_slow_units=1",
 		"-save_minimized_corpus=1",
 		"-use_traces=1",
 		"/var/tmp/corpus-minimized",

@@ -4,7 +4,7 @@ SAN = -fsanitize=address -fsanitize-coverage=edge,indirect-calls,8bit-counters,t
 OBJS = FuzzerCrossOver.o FuzzerDriver.o FuzzerIO.o \
 	FuzzerInterface.o FuzzerLoop.o FuzzerMutate.o \
 	FuzzerSHA1.o FuzzerSanitizerOptions.o FuzzerTraceState.o FuzzerUtil.o \
-	test_harness.o test_pg.o fail_pg.o
+	test_harness.o test_pg.o # fail_pg.o
 
 all: test.so
 

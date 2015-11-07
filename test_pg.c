@@ -190,7 +190,7 @@ void FuzzOne(const char *Data, size_t Size) {
 		   enable_timeout because STATEMENT_TIMEOUT is only armed in
 		   postgres.c which SPI bypasses */
 		CHECK_FOR_INTERRUPTS();
-		enable_timeout_after(STATEMENT_TIMEOUT, 1000);
+		enable_timeout_after(STATEMENT_TIMEOUT, 100);
 
 		retval = SPI_execute_plan(plan, values,
 								  NULL /* nulls */,
