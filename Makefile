@@ -15,7 +15,7 @@ test_harness.o: test_harness.cpp
 	clang++ -g -O0 -Wno-writable-strings -fPIC -c -std=c++11 $(SAN) test_harness.cpp
 
 %.o: %.c
-	clang -g -O0 -I`/usr/local/pgsql/bin/pg_config --includedir-server` -fPIC  -c $(SAN) $<
+	clang -g -O0 -I`/usr/local/pgsql/bin/pg_config --includedir-server` -fPIC  -c $(SAN) -Wno-ignored-attributes $<
 
 test.so: $(OBJS)
 	clang++ -shared -g -O0 -o test.so $(SAN) $(OBJS)

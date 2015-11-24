@@ -262,17 +262,32 @@ void FuzzOne(const char *Data, size_t Size) {
 		 */
 		
 		int errcategory = ERRCODE_TO_CATEGORY(edata->sqlerrcode);
+		int regerrcode = -1;
+		char regerrstr[256];
+
+		if (edata->sqlerrcode == ERRCODE_INVALID_REGULAR_EXPRESSION) {
+			char *p = strrchr(edata->message, ':');
+			if (p && p[1] == ' ')
+				p += 2;
+			if (p && p[0]) {
+				strncpy(regerrstr, p, 256);
+				pg_regerror(REG_ATOI, NULL, regerrstr, 256);
+				regerrcode = atoi(regerrstr);
+			}
+		}
+				
 		if (errcategory == ERRCODE_PROGRAM_LIMIT_EXCEEDED ||
 			errcategory == ERRCODE_INSUFFICIENT_RESOURCES ||
 			//			errcategory == ERRCODE_OPERATOR_INTERVENTION || /* statement_timeout */
 			errcategory == ERRCODE_INTERNAL_ERROR ||
 			(edata->sqlerrcode == ERRCODE_INVALID_REGULAR_EXPRESSION &&
-			 (strstr(edata->message, "regular expression failed") ||
-			  strstr(edata->message, "out of memory") ||
-			  strstr(edata->message, "cannot happen") ||
-			  //			  strstr(edata->message, "too complex") ||
-			  strstr(edata->message, "too many colors") ||
-			  strstr(edata->message, "operation cancelled"))))
+			 (regerrcode == REG_ESPACE ||
+			  regerrcode == REG_ASSERT ||
+			  //regerrcode == REG_ETOOBIG ||
+			  //regerrcode == REG_CANCEL ||
+			  regerrcode == REG_INVARG ||
+			  regerrcode == REG_MIXED  ||
+			  regerrcode == REG_ECOLORS)))
 			{
 				if (in_fuzzer) {
 					char errorname[80];
