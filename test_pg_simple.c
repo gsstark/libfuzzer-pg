@@ -84,6 +84,8 @@ test_fuzz_environment(PG_FUNCTION_ARGS){
 
 /* Postgres SQL Function to invoke fuzzer */
 
+SPIPlanPtr plan;
+
 PG_FUNCTION_INFO_V1(fuzz);
 Datum
 fuzz(PG_FUNCTION_ARGS)
@@ -92,39 +94,21 @@ fuzz(PG_FUNCTION_ARGS)
 	text *expr_text = PG_GETARG_TEXT_P(1);
 	char *expr = text_to_cstring(expr_text);
 	Oid argtypes[1] = { TEXTOID };
-	int retval;
 
-	if (runs > 400000000)
-		elog(ERROR, "Unreasonable number of runs");
+	struct rlimit new;
+	new.rlim_cur = new.rlim_max = 0;
+	setrlimit(RLIMIT_CORE, &new);
+	new.rlim_cur = 1; new.rlim_max = 300;
+	setrlimit(RLIMIT_CPU, &new);
+	new.rlim_cur = 200000000; new.rlim_max = RLIM_INFINITY;
+	setrlimit(RLIMIT_DATA);
 
-	limit_resources();
-
-	/* If Postgres handles a FATAL error it'll exit cleanly but we
-	 * want to treat the last test as a failure */
-	on_proc_exit(fuzz_exit_handler, 0);
-	in_fuzzer = 1;
-
-	retval = SPI_connect();
-	if (retval != SPI_OK_CONNECT)
-		abort();
-
+	SPI_connect();
 	/* Prepare once before we start the driver */
 	plan = SPI_prepare(expr, 1, argtypes);
-	if (!plan)
-		elog(ERROR, "Failed to plan query");
-
-	retval = SPI_getargcount(plan);
-	if (retval != 1)
-		elog(ERROR, "Query to fuzz must take precisely one parameter");
-
-	/* Invoke the driver via the test_harness.cpp C++ code */
-
+	/* Invoke the driver via the C++ code */
 	GoFuzz(runs);
-
 	SPI_finish();
-
-	/* disable the proc_exit call which calls the deathcallback */
-	in_fuzzer = 0;
 
 	PG_RETURN_NULL();
 }		
@@ -166,18 +150,8 @@ static void list_errcode_counts() {
 int FuzzOne(const char *Data, size_t Size) {
 	text *arg = cstring_to_text_with_len(Data, Size);
 
-	static unsigned long n_execs, n_success, n_fail, n_null;
-	static int last_error, last_error_count;
 	MemoryContext oldcontext = CurrentMemoryContext;
  	ResourceOwner oldowner = CurrentResourceOwner;
-
-	n_execs++;
-
-	/* Not sure why we're being passed NULL */
-	if (!Data) {
-		n_null++;
-		return 0;
-	}
 
 	BeginInternalSubTransaction(NULL);
  	PG_TRY();
@@ -200,16 +174,6 @@ int FuzzOne(const char *Data, size_t Size) {
 
 		SPI_freetuptable(SPI_tuptable);
 
-		if (retval == SPI_OK_SELECT)
-			n_success++;
-		else if (retval >= 0)
-			fprintf(stderr, "SPI reports non-select run retval=%d\n", retval);
-		else
-			abort();
-
-		last_error_count = 0;
-		last_error = 0;
-
 		ReleaseCurrentSubTransaction();
 		MemoryContextSwitchTo(oldcontext);
 		CurrentResourceOwner = oldowner;
@@ -225,87 +189,40 @@ int FuzzOne(const char *Data, size_t Size) {
 		inc_errcode_count(edata->sqlerrcode);
 
 
-		/* Allow C-c to cancel the whole fuzzer */
-		if (edata->sqlerrcode == ERRCODE_QUERY_CANCELED &&
-			strstr(edata->message, "due to user request")) {
-			in_fuzzer = 0;
-			PG_RE_THROW();
-		} else if (last_error != edata->sqlerrcode) {
-			/* New error seen -- that's a good thing */
-			last_error = edata->sqlerrcode;
-			last_error_count = 0;
-		} else if (last_error_count++ > 10) {
-			/* If we're repeatedly hitting the same errcode over
-			 * and over abort because that's usually a sign the
-			 * harness isn't working properly */
-			in_fuzzer = 0;
-			PG_RE_THROW();
-		}
-
-		/* Otherwise attempt to recover using the subtransaction */
+		/* Attempt to recover using the subtransaction */
 		FlushErrorState();
-
 		/* Abort the inner transaction */
 		RollbackAndReleaseCurrentSubTransaction();
 		MemoryContextSwitchTo(oldcontext);
 		CurrentResourceOwner = oldowner;
-
 		SPI_restore_connection();
 
-		n_fail++;
-
-		/* INTERNAL_ERROR is definitely a bug. The others debatable
-		 * but in particular we're interested in infinite recursion
-		 * caught by check_for_stack_depth() which shows up as
-		 * STATEMENT_TOO_COMPLEX which is in the
-		 * PROGRAM_LIMIT_EXCEEDED category
-		 */
 		
+		/* INTERNAL_ERROR is definitely a bug. The others debatable but in
+		 * particular we're interested in infinite recursion caught by
+		 * check_for_stack_depth() which shows up as STATEMENT_TOO_COMPLEX
+		 * which is in the PROGRAM_LIMIT_EXCEEDED category
+		 */
 		int errcategory = ERRCODE_TO_CATEGORY(edata->sqlerrcode);
-		int regerrcode = -1;
-		char regerrstr[256];
-
-		if (edata->sqlerrcode == ERRCODE_INVALID_REGULAR_EXPRESSION) {
-			char *p = strrchr(edata->message, ':');
-			if (p && p[1] == ' ')
-				p += 2;
-			if (p && p[0]) {
-				strncpy(regerrstr, p, 256);
-				pg_regerror(REG_ATOI, NULL, regerrstr, 256);
-				regerrcode = atoi(regerrstr);
-			}
-		}
-				
+		int regerrcode = ... // elided for space
+		
 		if (errcategory == ERRCODE_PROGRAM_LIMIT_EXCEEDED ||
 			errcategory == ERRCODE_INSUFFICIENT_RESOURCES ||
-			//			errcategory == ERRCODE_OPERATOR_INTERVENTION || /* statement_timeout */
 			errcategory == ERRCODE_INTERNAL_ERROR ||
 			(edata->sqlerrcode == ERRCODE_INVALID_REGULAR_EXPRESSION &&
-			 (regerrcode == REG_ESPACE ||
-			  regerrcode == REG_ASSERT ||
-			  //regerrcode == REG_ETOOBIG ||
-			  //regerrcode == REG_CANCEL ||
-			  regerrcode == REG_INVARG ||
-			  regerrcode == REG_MIXED  ||
+			 (regerrcode == REG_ESPACE || regerrcode == REG_ASSERT ||
+			  regerrcode == REG_INVARG || regerrcode == REG_MIXED  ||
 			  regerrcode == REG_ECOLORS)))
 			{
-				if (in_fuzzer) {
-					char errorname[80];
-					sprintf(errorname, "error-%s", unpack_sql_state(edata->sqlerrcode));
-					fprintf(stderr, "Calling errocallback for %s (%s)\n", errorname, edata->message);
-					errorcallback(errorname);
-				}
-
-				/* we were in a subtransaction so yay we can continue */
+				char errorname[80];
+				sprintf(errorname, "error-%s", unpack_sql_state(edata->sqlerrcode));
+				fprintf(stderr, "Calling errocallback for %s (%s)\n",
+						errorname, edata->message);    
+				errorcallback(errorname);
 				FreeErrorData(edata);
 			}
 		else
-			{
-				last_error = 0;
-				last_error_count = 0;
-
-				FreeErrorData(edata);
-			}
+			FreeErrorData(edata);
 	}
 	PG_END_TRY();
 
@@ -318,8 +235,6 @@ int FuzzOne(const char *Data, size_t Size) {
 		list_errcode_counts();
 		old_n_execs = n_execs;
 	}
-
-	return 0;
 }
 
 

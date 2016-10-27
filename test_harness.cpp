@@ -1,31 +1,30 @@
-#include "FuzzerInterface.h"
-#include "FuzzerInternal.h"
+#include "Fuzzer/FuzzerInterface.h"
+#include "Fuzzer/FuzzerInternal.h"
 #include <string.h>
 #include <signal.h>
 
-extern "C" void FuzzOne(const uint8_t *Data, size_t Size);
+extern "C" int FuzzOne(const uint8_t *Data, size_t Size);
 extern "C" int GoFuzz(unsigned runs);
 extern "C" void aborthandler(int signum, siginfo_t *info, void *cxt);
 extern "C" void staticdeathcallback();
-extern "C" void errorcallback(const char *errorname);
+//extern "C" void errorcallback(const char *errorname);
 
 int GoFuzz(unsigned runs) {
 	char runarg[] = "-runs=400000000999";
 	sprintf(runarg, "-runs=%u", runs);
-	char *argv[] = {
+	char *argvdata[] = {
 		"PostgresFuzzer",
 		runarg,
 		"-verbosity=1",
 		"-only_ascii=1",
 		"-timeout=60",
 		"-report_slow_units=1",
-		"-save_minimized_corpus=1",
 		"-use_traces=1",
-		"/var/tmp/corpus-minimized",
 		"/var/tmp/corpus",
 		"-max_len=32",
 		NULL
 	};
+	char **argv = argvdata;
 	int argc = sizeof(argv)/sizeof(*argv) - 1;
 
 	/* Catch abort and print out the test case */
@@ -34,7 +33,7 @@ int GoFuzz(unsigned runs) {
 	sigact.sa_sigaction = aborthandler;
 	sigaction(SIGABRT, &sigact, 0);
 
-	return fuzzer::FuzzerDriver(argc, argv, FuzzOne);
+	return fuzzer::FuzzerDriver(&argc, &argv, FuzzOne);
 }
 
 void aborthandler(int signum, siginfo_t *info, void *cxt) {
@@ -45,10 +44,10 @@ void aborthandler(int signum, siginfo_t *info, void *cxt) {
 	raise(SIGSEGV);
 }
 
-void staticdeathcallback() {
-	fuzzer::Fuzzer::StaticDeathCallback();
-}	
+//void staticdeathcallback() {
+//	fuzzer::Fuzzer::StaticDeathCallback();
+//}	
 
-void errorcallback(const char *errorname) {
-	fuzzer::Fuzzer::StaticErrorCallback(errorname);
-}	
+//void errorcallback(const char *errorname) {
+//	fuzzer::Fuzzer::StaticErrorCallback(errorname);
+//}	
