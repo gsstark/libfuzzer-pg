@@ -17,8 +17,8 @@
 #include <sys/resource.h>
 
 extern void GoFuzz();
-extern void staticdeathcallback();
-extern void errorcallback(const char *errorname);
+//extern void staticdeathcallback();
+//extern void errorcallback(const char *errorname);
 
 static int in_fuzzer;
 
@@ -293,7 +293,7 @@ int FuzzOne(const char *Data, size_t Size) {
 					char errorname[80];
 					sprintf(errorname, "error-%s", unpack_sql_state(edata->sqlerrcode));
 					fprintf(stderr, "Calling errocallback for %s (%s)\n", errorname, edata->message);
-					errorcallback(errorname);
+					//					errorcallback(errorname);
 				}
 
 				/* we were in a subtransaction so yay we can continue */
