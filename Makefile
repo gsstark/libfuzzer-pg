@@ -1,4 +1,5 @@
 CLANGVERS=-4.0
+LSAN_OPTIONS=detect_leaks=0
 
 SAN = -fsanitize=address -fsanitize-coverage=edge,indirect-calls,8bit-counters,trace-cmp
 #SAN = -fsanitize-coverage=edge,indirect-calls,8bit-counters,trace-cmp
