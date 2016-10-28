@@ -27,8 +27,8 @@ PG_MODULE_MAGIC;
 SPIPlanPtr plan;
 
 void fuzz_exit_handler(int code, Datum arg) {
-	if (in_fuzzer)
-		abort();
+	//	if (in_fuzzer)
+		//		abort();
 }
 
 
