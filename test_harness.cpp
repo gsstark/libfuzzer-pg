@@ -25,7 +25,7 @@ int GoFuzz(unsigned runs) {
 		NULL
 	};
 	char **argv = argvdata;
-	int argc = sizeof(argv)/sizeof(*argv) - 1;
+	int argc = sizeof(argvdata)/sizeof(*argvdata) - 1;
 
 	/* Catch abort and print out the test case */
 	struct sigaction sigact;
