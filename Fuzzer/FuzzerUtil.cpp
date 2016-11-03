@@ -92,7 +92,8 @@ static void SetSigaction(int signum,
   sigact.sa_sigaction = callback;
   if (sigaction(signum, &sigact, 0)) {
     Printf("libFuzzer: sigaction failed with %d\n", errno);
-    exit(1);
+    return;
+	//	exit(1);
   }
 }
 
@@ -100,7 +101,8 @@ void SetTimer(int Seconds) {
   struct itimerval T {{Seconds, 0}, {Seconds, 0}};
   if (setitimer(ITIMER_REAL, &T, nullptr)) {
     Printf("libFuzzer: setitimer failed with %d\n", errno);
-    exit(1);
+    return;
+	//	exit(1);
   }
   SetSigaction(SIGALRM, AlarmHandler);
 }

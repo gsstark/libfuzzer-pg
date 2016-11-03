@@ -285,12 +285,14 @@ static bool AllInputsAreFiles() {
 int MinimizeCrashInput(const std::vector<std::string> &Args) {
   if (Inputs->size() != 1) {
     Printf("ERROR: -minimize_crash should be given one input file\n");
-    exit(1);
+	return(1);
+	//    exit(1);
   }
   if (Flags.runs <= 0 && Flags.max_total_time == 0) {
     Printf("ERROR: you need to use -runs=N or "
            "-max_total_time=N with -minimize_crash=1\n" );
-    exit(1);
+	return(1);
+	//    exit(1);
   }
   std::string InputFilePath = Inputs->at(0);
   std::string BaseCmd = CloneArgsWithoutX(Args, "minimize_crash");
@@ -315,7 +317,8 @@ int MinimizeCrashInput(const std::vector<std::string> &Args) {
     int ExitCode = ExecuteCommand(Cmd);
     if (ExitCode == 0) {
       Printf("ERROR: the input %s did not crash\n", CurrentFilePath.c_str());
-      exit(1);
+      return(1);
+	  //	  exit(1);
     }
     Printf("CRASH_MIN: '%s' (%zd bytes) caused a crash. Will try to minimize "
            "it further\n",
@@ -348,7 +351,7 @@ int MinimizeCrashInputInternalStep(Fuzzer *F, InputCorpus *Corpus) {
   F->SetMaxMutationLen(U.size() - 1);
   F->MinimizeCrashLoop(U);
   Printf("INFO: Done MinimizeCrashInputInternalStep, no crashes found\n");
-  exit(0);
+  //  exit(0);
   return 0;
 }
 
@@ -488,14 +491,16 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
            "***       executed the target code on a fixed set of inputs.\n"
            "***\n");
     F.PrintFinalStats();
-    exit(0);
+	return(0);
+	//    exit(0);
   }
 
   if (Flags.merge) {
     if (Options.MaxLen == 0)
       F.SetMaxInputLen(kMaxSaneLen);
     F.Merge(*Inputs);
-    exit(0);
+	return(0);
+	//    exit(0);
   }
 
   size_t TemporaryMaxLen = Options.MaxLen ? Options.MaxLen : kMaxSaneLen;
@@ -528,7 +533,8 @@ int FuzzerDriver(int *argc, char ***argv, UserCallback Callback) {
            F.secondsSinceProcessStartUp());
   F.PrintFinalStats();
 
-  exit(0);  // Don't let F destroy itself.
+	return(0);
+	//  exit(0);  // Don't let F destroy itself.
 }
 
 // Storage for global ExternalFunctions object.

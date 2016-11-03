@@ -46,7 +46,8 @@ static void MissingExternalApiFunction(const char *FnName) {
   Printf("ERROR: %s is not defined. Exiting.\n"
          "Did you use -fsanitize-coverage=... to build your code?\n",
          FnName);
-  exit(1);
+  return;
+  //  exit(1);
 }
 
 #define CHECK_EXTERNAL_FUNCTION(fn)                                            \
@@ -255,13 +256,14 @@ void Fuzzer::CrashCallback() {
   Printf("SUMMARY: libFuzzer: deadly signal\n");
   DumpCurrentUnit("crash-");
   PrintFinalStats();
-  exit(Options.ErrorExitCode);
+  return;
+  //  exit(Options.ErrorExitCode);
 }
 
 void Fuzzer::InterruptCallback() {
   Printf("==%d== libFuzzer: run interrupted; exiting\n", GetPid());
   PrintFinalStats();
-  _Exit(0);  // Stop right now, don't perform any at-exit actions.
+  //  _Exit(0);  // Stop right now, don't perform any at-exit actions.
 }
 
 NO_SANITIZE_MEMORY
@@ -287,7 +289,7 @@ void Fuzzer::AlarmCallback() {
       EF->__sanitizer_print_stack_trace();
     Printf("SUMMARY: libFuzzer: timeout\n");
     PrintFinalStats();
-    _Exit(Options.TimeoutExitCode); // Stop right now.
+	//    _Exit(Options.TimeoutExitCode); // Stop right now.
   }
 }
 
@@ -301,7 +303,7 @@ void Fuzzer::RssLimitCallback() {
   DumpCurrentUnit("oom-");
   Printf("SUMMARY: libFuzzer: out-of-memory\n");
   PrintFinalStats();
-  _Exit(Options.ErrorExitCode); // Stop right now.
+  //  _Exit(Options.ErrorExitCode); // Stop right now.
 }
 
 void Fuzzer::PrintStats(const char *Where, const char *End, size_t Units) {
@@ -390,7 +392,7 @@ void Fuzzer::CheckExitOnSrcPosOrItem() {
       if (Descr.find(Options.ExitOnSrcPos) != std::string::npos) {
         Printf("INFO: found line matching '%s', exiting.\n",
                Options.ExitOnSrcPos.c_str());
-        _Exit(0);
+		//        _Exit(0);
       }
     }
   }
@@ -398,7 +400,7 @@ void Fuzzer::CheckExitOnSrcPosOrItem() {
     if (Corpus.HasUnit(Options.ExitOnItem)) {
       Printf("INFO: found item with checksum '%s', exiting.\n",
              Options.ExitOnItem.c_str());
-      _Exit(0);
+	  //      _Exit(0);
     }
   }
 }
@@ -458,7 +460,8 @@ void Fuzzer::ShuffleAndMinimize(UnitVector *InitialCorpus) {
   if (Corpus.empty()) {
     Printf("ERROR: no interesting inputs were found. "
            "Is the code instrumented for coverage? Exiting.\n");
-    exit(1);
+    return;
+	//	exit(1);
   }
 }
 
@@ -670,7 +673,7 @@ void Fuzzer::TryDetectingAMemoryLeak(const uint8_t *Data, size_t Size,
     CurrentUnitSize = Size;
     DumpCurrentUnit("leak-");
     PrintFinalStats();
-    _Exit(Options.ErrorExitCode);  // not exit() to disable lsan further on.
+	//    _Exit(Options.ErrorExitCode);  // not exit() to disable lsan further on.
   }
 }
 

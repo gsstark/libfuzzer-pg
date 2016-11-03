@@ -46,7 +46,8 @@ static void ListFilesInDirRecursive(const std::string &Dir, long *Epoch,
   DIR *D = opendir(Dir.c_str());
   if (!D) {
     Printf("No such directory: %s; exiting\n", Dir.c_str());
-    exit(1);
+	return;
+	//    exit(1);
   }
   while (auto E = readdir(D)) {
     std::string Path = DirPlusFile(Dir, E->d_name);
@@ -64,7 +65,8 @@ Unit FileToVector(const std::string &Path, size_t MaxSize, bool ExitOnError) {
   std::ifstream T(Path);
   if (ExitOnError && !T) {
     Printf("No such directory: %s; exiting\n", Path.c_str());
-    exit(1);
+	return Unit(0);
+	//    exit(1);
   }
 
   T.seekg(0, T.end);
