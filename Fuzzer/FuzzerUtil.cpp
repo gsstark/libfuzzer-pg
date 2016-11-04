@@ -98,13 +98,25 @@ static void SetSigaction(int signum,
 }
 
 void SetTimer(int Seconds) {
-  struct itimerval T {{Seconds, 0}, {Seconds, 0}};
-  if (setitimer(ITIMER_REAL, &T, nullptr)) {
-    Printf("libFuzzer: setitimer failed with %d\n", errno);
-    return;
-	//	exit(1);
-  }
-  SetSigaction(SIGALRM, AlarmHandler);
+	//  struct itimerval T {{Seconds, 0}, {Seconds, 0}};
+	//  if (setitimer(ITIMER_REAL, &T, nullptr)) {
+	//    Printf("libFuzzer: setitimer failed with %d\n", errno);
+	//    return;
+	//	//	exit(1);
+	//  }
+	//  SetSigaction(SIGALRM, AlarmHandler);
+
+	// Hack to use 1s SIGXCPU signal instead of SIGALRM
+	int Res;
+	struct rlimit limit = {1, RLIM_INFINITY};
+	Res = setrlimit(RLIMIT_CPU, &limit);
+	assert(Res == 0);
+
+	struct sigaction sigact;
+	memset(&sigact, 0, sizeof(sigact));
+	sigact.sa_sigaction = AlarmHandler;
+	Res = sigaction(SIGXCPU, &sigact, 0);
+	assert(Res == 0);
 }
 
 void SetSigSegvHandler() { SetSigaction(SIGSEGV, CrashHandler); }
