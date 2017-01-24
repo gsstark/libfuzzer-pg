@@ -41,7 +41,7 @@ dummy_args = {
     'jsonb' : ['{}'],
     'name' : [''],
     'numeric' : ['0'],
-    'oid' : ['0'],
+    'oid' : ['23'],
     'real' : ['0.0'],
     'regclass' : ['pg_proc'],
     'regconfig' : ['3748'],
