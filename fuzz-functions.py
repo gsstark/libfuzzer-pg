@@ -76,7 +76,12 @@ def fuzz(proname, proargs, arg_to_test):
     with psycopg2.connect(conn_string) as connection:
         with connection.cursor() as cur:
             cur.execute("set max_stack_depth='7680kB'")
-            cur.execute("select fuzz(1000, '%s')" % query.replace("'", "''"))
+            try:
+                cur.execute("select fuzz(1000, '%s')" % query.replace("'", "''"))
+            except psycopg2.Error as e:
+                print e.pgcode
+                print e.pgerror
+                pass
 
 def main():
     with psycopg2.connect(conn_string) as connection:
