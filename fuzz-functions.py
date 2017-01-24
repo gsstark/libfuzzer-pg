@@ -16,9 +16,20 @@ functions_query = (
     " WHERE (provolatile = 'i' OR provolatile = 's')"
     "   AND      proargtypes::regtype[] && array["+testable_types_sql+"]::regtype[]"
     "   AND  NOT proargtypes::regtype[] && array['internal']::regtype[]"
+    "   AND  NOT provariadic"
+    "   AND  NOT proisagg"
+    "   AND  NOT proiswindow"
     )
 
 conn_string = "host='/tmp'"
+
+# These are just too slow to fuzz
+problem_functions = [
+    'ts_debug',
+    'database_to_xmlschema',
+    'database_to_xml',
+    'database_to_xml_and_xmlschema'
+]
 
 dummy_args = {
 #    '"any"' : '',
@@ -77,7 +88,7 @@ def fuzz(proname, proargs, arg_to_test):
         with connection.cursor() as cur:
             cur.execute("set max_stack_depth='7680kB'")
             try:
-                cur.execute("select fuzz(1000, '%s')" % query.replace("'", "''"))
+                cur.execute("select fuzz(10000, '%s')" % query.replace("'", "''"))
             except psycopg2.Error as e:
                 print e.pgcode
                 print e.pgerror
@@ -90,6 +101,8 @@ def main():
             functions = cur.fetchall()
     for f in functions:
         (proname,proargs) = f
+        if proname in problem_functions:
+            continue
         for i in range(0,len(proargs)):
             if proargs[i] in testable_types:
                 fuzz(proname, proargs, i)
