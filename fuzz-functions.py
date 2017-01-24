@@ -16,7 +16,7 @@ functions_query = (
     " WHERE (provolatile = 'i' OR provolatile = 's')"
     "   AND      proargtypes::regtype[] && array["+testable_types_sql+"]::regtype[]"
     "   AND  NOT proargtypes::regtype[] && array['internal']::regtype[]"
-    "   AND  NOT provariadic"
+    "   AND provariadic = 0"
     "   AND  NOT proisagg"
     "   AND  NOT proiswindow"
     )
