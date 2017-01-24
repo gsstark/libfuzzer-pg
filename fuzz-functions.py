@@ -69,7 +69,7 @@ def fuzz(proname, proargs, arg_to_test):
         else:
             arglists.append(["'%s'::%s" % (d,proargs[i]) for d in dummy_args[proargs[i]]])
     for args in itertools.product(*arglists):
-        query = "select %s(%s)" % (proname, ', '.join(args))
+        query = 'select "%s"(%s)' % (proname, ', '.join(args))
         print(query)
 
     # Need a fresh connection due to fuzzer being only capable of running once
