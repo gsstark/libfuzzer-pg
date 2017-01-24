@@ -75,6 +75,7 @@ def fuzz(proname, proargs, arg_to_test):
     # Need a fresh connection due to fuzzer being only capable of running once
     with psycopg2.connect(conn_string) as connection:
         with connection.cursor() as cur:
+            cur.execute("set max_stack_depth='7680kB'")
             cur.execute("select fuzz(1000, '%s')" % query.replace("'", "''"))
 
 def main():
