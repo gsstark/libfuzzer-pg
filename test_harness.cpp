@@ -19,7 +19,12 @@ int GoFuzz(unsigned runs) {
 		"-only_ascii=1",
 		"-timeout=60",
 		"-report_slow_units=1",
-		"-use_traces=1",
+		"-handle_int=0",
+		"-use_counters=1",
+		"-use_indir_calls=1",
+		"-use_memcmp=1",
+		"-use_memmem=1",
+		"-use_value_profile=1",
 		"/var/tmp/corpus",
 		"-max_len=32",
 		NULL
