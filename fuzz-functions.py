@@ -133,7 +133,7 @@ def main():
         (proname,proargs) = f
         if proname in problem_functions:
             continue
-        if proname.find("regex"):
+        if proname.find("regex") > -1:
             print "skipping regex function %s" % proname
             continue
         for i in range(0,len(proargs)):
