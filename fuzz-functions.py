@@ -29,6 +29,36 @@ problem_functions = [
     'database_to_xmlschema',
     'database_to_xml',
     'database_to_xml_and_xmlschema'
+    'nameregexeq',
+    'nameregexne',
+    'textregexeq',
+    'textregexne',
+    'texticregexeq',
+    'texticregexne',
+    'nameicregexeq',
+    'nameicregexne',
+    'bpcharicregexeq',
+    'bpcharicregexne',
+    'bpcharregexeq',
+    'bpcharregexne',
+    'regexp_replace',
+    'regexp_replace',
+    'regexp_match',
+    'regexp_match',
+    'regexp_matches',
+    'regexp_matches',
+    'regexp_split_to_table',
+    'regexp_split_to_table',
+    'regexp_split_to_array',
+    'regexp_split_to_array',
+    'regexeqsel',
+    'icregexeqsel',
+    'regexnesel',
+    'icregexnesel',
+    'regexeqjoinsel',
+    'icregexeqjoinsel',
+    'regexnejoinsel',
+    'icregexnejoinsel',
 ]
 
 dummy_args = {
@@ -88,7 +118,7 @@ def fuzz(proname, proargs, arg_to_test):
         with connection.cursor() as cur:
             cur.execute("set max_stack_depth='7680kB'")
             try:
-                cur.execute("select fuzz(10000, '%s')" % query.replace("'", "''"))
+                cur.execute("select fuzz(100000, '%s')" % query.replace("'", "''"))
             except psycopg2.Error as e:
                 print e.pgcode
                 print e.pgerror
