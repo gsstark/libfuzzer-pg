@@ -28,7 +28,7 @@ problem_functions = [
     'ts_debug',
     'database_to_xmlschema',
     'database_to_xml',
-    'database_to_xml_and_xmlschema'
+    'database_to_xml_and_xmlschema',
     'nameregexeq',
     'nameregexne',
     'textregexeq',
@@ -59,6 +59,8 @@ problem_functions = [
     'icregexeqjoinsel',
     'regexnejoinsel',
     'icregexnejoinsel',
+    # substring(text,text) and substring(text,text,text) are regex functions
+    'substring',
 ]
 
 dummy_args = {
