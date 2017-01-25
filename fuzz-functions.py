@@ -133,6 +133,9 @@ def main():
         (proname,proargs) = f
         if proname in problem_functions:
             continue
+        if proname.find("regex"):
+            print "skipping regex function %s" % proname
+            continue
         for i in range(0,len(proargs)):
             if proargs[i] in testable_types:
                 fuzz(proname, proargs, i)
