@@ -11,6 +11,7 @@
 #include "utils/guc.h"
 #include "access/xact.h"
 #include "regex/regex.h"
+#include "lib/stringinfo.h"
 
 #include <string.h>
 #include <sys/time.h>
@@ -188,14 +189,20 @@ static void list_errcode_counts() {
 }
 
 static void jsonb_errcode_counts() {
-	char buf[num_counts * 20], *p = buf;
 	int i;
-	*p++ = '{';
-	for (i=0; i<num_counts; i++)
-		p += sprintf(p, "\"%s\":%d,",  unpack_sql_state(errcode_counts[i].errcode), errcode_counts[i].count);
-	*p++ = '}';
-	*p = '\0';
-	fprintf(stderr, "JSON: %s\n", buf);
+	StringInfoData json_data, *json = &json_data;
+
+	initStringInfo(json);
+	appendStringInfoChar(json, '{');
+	for (i=0; i<num_counts; i++) {
+		appendStringInfo(json, "\"%s\": %d, ",
+						 unpack_sql_state(errcode_counts[i].errcode),
+						 errcode_counts[i].count);
+		if (i != num_counts-1)
+			appendStringInfoChar(json, ',');
+	}
+	appendStringInfoChar(json, '}');
+	fprintf(stderr, "JSON: %s\n", json->data);
 }
 
 
