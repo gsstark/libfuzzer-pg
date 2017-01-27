@@ -78,6 +78,7 @@ test_fuzz_environment(PG_FUNCTION_ARGS){
 
 	elog(WARNING, "setting statement_timeout");
 	SetConfigOption("statement_timeout", "200", PGC_SUSET, PGC_S_OVERRIDE);
+	elog(WARNING, "setting max_stack_depth");
 	SetConfigOption("set max_stack_depth", "7680kB", PGC_SUSET, PGC_S_OVERRIDE);
 
 	PG_RETURN_NULL();
@@ -98,6 +99,11 @@ fuzz(PG_FUNCTION_ARGS)
 
 	if (ever_called_before++) {
 		elog(ERROR, "Fuzzer can only be used once, reconnect to a new process to run again");
+	}
+
+	if (atoi(GetConfigOptionByName("max_stack_depth", NULL, false)) < 7680) {
+		elog(WARNING, "setting max_stack_depth");
+		SetConfigOption("max_stack_depth", "7680", PGC_SUSET, PGC_S_OVERRIDE);
 	}
 
 	if (runs > 400000000)
