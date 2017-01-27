@@ -78,6 +78,7 @@ test_fuzz_environment(PG_FUNCTION_ARGS){
 
 	elog(WARNING, "setting statement_timeout");
 	SetConfigOption("statement_timeout", "200", PGC_SUSET, PGC_S_OVERRIDE);
+	SetConfigOption("set max_stack_depth", "7680kB", PGC_SUSET, PGC_S_OVERRIDE);
 
 	PG_RETURN_NULL();
 }	
