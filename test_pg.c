@@ -93,6 +93,11 @@ fuzz(PG_FUNCTION_ARGS)
 	char *expr = text_to_cstring(expr_text);
 	Oid argtypes[1] = { TEXTOID };
 	int retval;
+	static unsigned ever_called_before = 0;
+
+	if (ever_called_before++) {
+		elog(ERROR, "Fuzzer can only be used once, reconnect to a new process to run again");
+	}
 
 	if (runs > 400000000)
 		elog(ERROR, "Unreasonable number of runs");
