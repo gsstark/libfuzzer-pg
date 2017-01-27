@@ -86,6 +86,23 @@ test_fuzz_environment(PG_FUNCTION_ARGS){
 
 /* Postgres SQL Function to invoke fuzzer */
 
+/* 
+   Current project... surface progress reports via SQL return values and INFO/WARNING logs.
+
+   Progress report from fuzzer looks like:
+
+   #27718  INITED cov: 870 bits: 994 indir: 198 corp: 7/31b exec/s: 13859 rss: 388Mb 
+   #32768  pulse  cov: 1477 bits: 1731 indir: 203 corp: 40/292b exec/s: 6553 rss: 457Mb
+   #34008  NEW    cov: 1477 bits: 1732 indir: 203 corp: 41/295b exec/s: 6801 rss: 458Mb L: 3 MS: 2 ChangeByte-ChangeBit-
+   #27718  DONE   cov: 870 bits: 994 indir: 198 corp: 7/31b exec/s: 13859 rss: 388Mb
+
+   Progress reports from here look like:
+
+   FuzzOne n=65536  success=0  fail=65536  null=0
+   Error codes seen 42601:60539 42704:3460 22023:166 3F000:242 22P02:194 0A000:24 22003:80 22021:476 22025:355
+
+*/
+
 PG_FUNCTION_INFO_V1(fuzz);
 Datum
 fuzz(PG_FUNCTION_ARGS)
@@ -169,6 +186,19 @@ static void list_errcode_counts() {
 	}
 	fprintf(stderr, "\n");
 }
+
+static void jsonb_errcode_counts() {
+	char buf[num_counts * 20], *p = buf;
+	int i;
+	*p++ = '{';
+	for (i=0; i<num_counts; i++)
+		p += sprintf(p, "\"%s\":%d,",  unpack_sql_state(errcode_counts[i].errcode), errcode_counts[i].count);
+	*p++ = '}';
+	*p = '\0';
+	fprintf(stderr, "JSON: %s\n", buf);
+}
+
+
 
 /* 
  * Callback from fuzzer to execute one fuzz test case as set up in
@@ -327,7 +357,7 @@ int FuzzOne(const char *Data, size_t Size) {
 	if ((n_execs & (n_execs-1)) == 0) {
 		static int  old_n_execs;
 		fprintf(stderr, "FuzzOne n=%lu  success=%lu  fail=%lu  null=%lu\n", n_execs, n_success, n_fail, n_null);
-		list_errcode_counts();
+		jsonb_errcode_counts();
 		old_n_execs = n_execs;
 	}
 
